@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>加密币自选工具</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+    </style>
+</head>
+<body>
+    <h1>加密币自选工具</h1>
+    
+    <div class="container">
+        <div class="card">
+            <h2>数据获取</h2>
+            <button id="getBtcBtn">获取BTC-USD日线数据</button>
+            <button id="getEthBtn">获取ETH-USD日线数据</button>
+            <div id="dataStatus" class="status"></div>
+        </div>
+        
+        <div class="card">
+            <h2>筛选分析</h2>
+            <button id="runFilterBtn">运行筛选器</button>
+            <div id="filterStatus" class="status"></div>
+            <div id="reportResult"></div>
+        </div>
+        
+        <div class="card">
+            <h2>实时行情</h2>
+            <button id="startWsBtn">启动实时行情</button>
+            <button id="stopWsBtn">停止实时行情</button>
+            <div id="wsStatus" class="status"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const dataStatusEl = document.getElementById('dataStatus');
+            const filterStatusEl = document.getElementById('filterStatus');
+            const reportResultEl = document.getElementById('reportResult');
+            const wsStatusEl = document.getElementById('wsStatus');
+            
+            // 获取BTC-USD数据
+            document.getElementById('getBtcBtn').addEventListener('click', function() {
+                dataStatusEl.textContent = '正在获取BTC-USD数据...';
+                dataStatusEl.className = 'status';
+                
+                fetch('/get_crypto_data?symbol=BTC-USD')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            dataStatusEl.textContent = '成功获取BTC-USD数据！';
+                            dataStatusEl.className = 'status success';
+                        } else {
+                            dataStatusEl.textContent = `获取数据失败: ${data.error}`;
+                            dataStatusEl.className = 'status error';
+                        }
+                    })
+                    .catch(error => {
+                        dataStatusEl.textContent = `请求错误: ${error}`;
+                        dataStatusEl.className = 'status error';
+                    });
+            });
+            
+            // 获取ETH-USD数据
+            document.getElementById('getEthBtn').addEventListener('click', function() {
+                dataStatusEl.textContent = '正在获取ETH-USD数据...';
+                dataStatusEl.className = 'status';
+                
+                fetch('/get_crypto_data?symbol=ETH-USD')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            dataStatusEl.textContent = '成功获取ETH-USD数据！';
+                            dataStatusEl.className = 'status success';
+                        } else {
+                            dataStatusEl.textContent = `获取数据失败: ${data.error}`;
+                            dataStatusEl.className = 'status error';
+                        }
+                    })
+                    .catch(error => {
+                        dataStatusEl.textContent = `请求错误: ${error}`;
+                        dataStatusEl.className = 'status error';
+                    });
+            });
+            
+            // 运行筛选器
+            document.getElementById('runFilterBtn').addEventListener('click', function() {
+                filterStatusEl.textContent = '正在运行筛选器...';
+                filterStatusEl.className = 'status';
+                reportResultEl.innerHTML = '';
+                
+                fetch('/run_filter')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            filterStatusEl.textContent = '筛选完成！';
+                            filterStatusEl.className = 'status success';
+                            reportResultEl.innerHTML = `<pre>${data.report}</pre>`;
+                        } else {
+                            filterStatusEl.textContent = `筛选失败: ${data.error}`;
+                            filterStatusEl.className = 'status error';
+                        }
+                    })
+                    .catch(error => {
+                        filterStatusEl.textContent = `请求错误: ${error}`;
+                        filterStatusEl.className = 'status error';
+                    });
+            });
+            
+            // WebSocket连接变量
+            let socket = null;
+            
+            // 启动WebSocket连接
+            document.getElementById('startWsBtn').addEventListener('click', function() {
+                wsStatusEl.textContent = '正在连接WebSocket...';
+                wsStatusEl.className = 'status';
+                
+                try {
+                    // 使用Socket.IO连接
+                    socket = io();
+                    
+                    socket.on('connect', function() {
+                        wsStatusEl.textContent = 'WebSocket连接成功！';
+                        wsStatusEl.className = 'status success';
+                        socket.emit('subscribe', {channel: 'ticker'});
+                    });
+                    
+                    socket.on('ticker', function(data) {
+                        wsStatusEl.textContent = `最新行情: ${JSON.stringify(data)}`;
+                        wsStatusEl.className = 'status success';
+                    });
+                    
+                    socket.on('disconnect', function() {
+                        wsStatusEl.textContent = 'WebSocket连接已关闭。';
+                        wsStatusEl.className = 'status';
+                        socket = null;
+                    });
+                    
+                    socket.on('error', function(error) {
+                        wsStatusEl.textContent = `WebSocket错误: ${error}`;
+                        wsStatusEl.className = 'status error';
+                    });
+                    
+                } catch (error) {
+                    wsStatusEl.textContent = `创建WebSocket连接时发生错误: ${error}`;
+                    wsStatusEl.className = 'status error';
+                }
+            });
+            
+            // 停止WebSocket连接
+            document.getElementById('stopWsBtn').addEventListener('click', function() {
+                if (socket) {
+                    socket.disconnect();
+                    socket = null;
+                    wsStatusEl.textContent = 'WebSocket连接已手动关闭。';
+                    wsStatusEl.className = 'status';
+                } else {
+                    wsStatusEl.textContent = 'WebSocket未连接，无需关闭。';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
